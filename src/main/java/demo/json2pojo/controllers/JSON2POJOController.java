@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -11,6 +12,7 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import javax.tools.Diagnostic;
 import javax.tools.DiagnosticCollector;
@@ -41,6 +43,12 @@ public class JSON2POJOController {
 	
 	File outputDir= new File("output");
 	File outputClassesDirectory= new File("output\\build\\classes");
+	
+	public Optional<String> getFileExtension(String filename) {
+	    return Optional.ofNullable(filename)
+	      .filter(f -> f.contains("."))
+	      .map(f -> f.substring(filename.lastIndexOf(".") + 1));
+	}
 
 	@RequestMapping("generate")
 	public String init(@RequestParam("data") String schemaNames) {
@@ -65,13 +73,27 @@ public class JSON2POJOController {
 
 		}
 
-		
-
 		final StringBuffer compilationFiles= new StringBuffer();
 		try {
 
 			Files.walk(outputDir.toPath())
 			.filter(Files::isRegularFile)
+			.filter(file -> {
+				Optional<String> fileExtension= getFileExtension(file.getFileName().toString());
+				if(fileExtension.isPresent() && fileExtension.get().equals("java")) {
+					return true;
+				}
+				return false;
+			})
+			.filter(file -> {
+				String fileName= file.getFileName().toString();
+				String fileNameWithoutExtension= fileName.substring(0, fileName.indexOf('.'));
+				
+				if(fileNameWithoutExtension.equals("RootClass")) {
+					return false;
+				}
+				return true;
+			})
 			.map(path -> path.toFile().getPath())
 			.forEach(path -> {
 				compilationFiles.append(path+",");
@@ -92,6 +114,7 @@ public class JSON2POJOController {
 		} else {
 			res.append("\nCompilation of POJO sources failed!");
 		}
+		
 		testInstantiation();
 		return res.toString().replace("\n", "<br />\n");
 	}
@@ -135,7 +158,9 @@ public class JSON2POJOController {
 	boolean compile(String filePath) throws IOException {
 
 		//Create a list for compiler options
-		List<String> optionList = new ArrayList<String>();
+		//List<String> optionList = new ArrayList<String>();
+		//optionList.addAll(Arrays.asList("-classpath",System.getProperty("java.class.path")));
+		
 		String[] fileNameArr= filePath.split(",");
 
 		//specify directory for output classes
@@ -143,7 +168,7 @@ public class JSON2POJOController {
 			outputClassesDirectory.mkdirs();
 		}
 
-		optionList.addAll(Arrays.asList("-classpath",System.getProperty("java.class.path")));
+		
 
 		JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
 
@@ -151,7 +176,7 @@ public class JSON2POJOController {
 
 		StandardJavaFileManager fileManager = compiler.getStandardFileManager(diagnostics, null, null);
 
-		fileManager.setLocation(StandardLocation.CLASS_OUTPUT, Arrays.asList(new File("output/build/classes")));
+		fileManager.setLocation(StandardLocation.CLASS_OUTPUT, Arrays.asList(outputClassesDirectory));
 
 		Iterable<? extends JavaFileObject> compilationUnits = 
 				fileManager.getJavaFileObjectsFromStrings(Arrays.asList(fileNameArr));
@@ -165,12 +190,11 @@ public class JSON2POJOController {
 		System.out.println("compilation success? "+ success);
 
 		//Print compilation errors if any
-
 		if(diagnostics.getDiagnostics().size() > 0) {
 
 			for(Diagnostic<?> error : diagnostics.getDiagnostics()) {
 
-				System.out.println("Error Msg: "+error.getMessage(null));
+				System.out.println("Compilation Error Msg: "+error.getMessage(null));
 
 			}
 		}
@@ -181,13 +205,41 @@ public class JSON2POJOController {
 	void testInstantiation() {
 		
 		try {
+			
+			//Create a custom classloader for loading compiled POJO classes with ContextClassLoader as parent
 			URLClassLoader classLoader = new URLClassLoader(new URL[]{outputClassesDirectory.toURI().toURL()},
 					Thread.currentThread().getContextClassLoader());
+			
+			//Use Reflection API to instantiate and invoke methods on POJO class instances
 			Class<?> empClass = Class.forName("com.example.Employee", true, classLoader);
-			
+			Class<?> personClass = Class.forName("com.example.Person", true, classLoader);
+			Method[] empClassMethods= empClass.getDeclaredMethods();
+			Method[] personClassMethods= personClass.getDeclaredMethods();
 			Object empObj= empClass.getConstructor().newInstance();
+			Object personObj= personClass.getConstructor().newInstance();
 			
-			System.out.println("Class type: "+empObj.getClass());
+			for(Method method: empClassMethods) {
+				if(method.getName().equals("setName")) {
+					method.invoke(empObj, "Manas");
+				}
+				
+				if(method.getName().equals("setAge")) {
+					method.invoke(empObj, 19);
+				}
+			}
+			
+			for(Method method: personClassMethods) {
+				if(method.getName().equals("setName")) {
+					method.invoke(personObj, "Person1");
+				}
+				
+				if(method.getName().equals("setAge")) {
+					method.invoke(personObj, 23);
+				}
+			}
+			
+			System.out.println(empObj);
+			System.out.println(personObj);
 			
 		} catch (ClassNotFoundException | NoSuchMethodException | SecurityException | InstantiationException 
 				| IllegalAccessException | IllegalArgumentException | InvocationTargetException
