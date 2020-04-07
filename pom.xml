@@ -9,11 +9,11 @@
 		<version>2.2.4.RELEASE</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>demo</groupId>
+	<groupId>json2pojoDemo</groupId>
 	<artifactId>json2pojo</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>json2pojo</name>
-	<description>Demo project for Spring Boot</description>
+	<description>Create POJO from JSON files</description>
 
 	<properties>
 		<java.version>1.8</java.version>
@@ -46,6 +46,26 @@
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
 			</plugin>
+
+<!--  
+			<plugin>
+				<groupId>org.jsonschema2pojo</groupId>
+				<artifactId>jsonschema2pojo-maven-plugin</artifactId>
+				<version>1.0.2</version>
+				<configuration>
+					<sourceDirectory>${basedir}/src/main/resources/schema</sourceDirectory>
+					<targetPackage>com.example.types</targetPackage>
+				</configuration>
+				<executions>
+					<execution>
+						<goals>
+							<goal>generate</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			
+			-->
 		</plugins>
 	</build>
 
